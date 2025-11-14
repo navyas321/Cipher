@@ -24,7 +24,7 @@ class TranscriptionService:
         """
         Initialize Deepgram client with API key and extended timeout.
         """
-        api_key = "d36a45d3c8b0eb25dd95985f452e737df70485c3"
+        api_key = os.environ.get('DEEPGRAM_API_KEY', 'YOUR_DEEPGRAM_API_KEY_HERE')
         # Initialize with extended timeout for large files (5 minutes)
         self.client = DeepgramClient(api_key=api_key, timeout=300.0)
     

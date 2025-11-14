@@ -7,7 +7,7 @@ import os
 from video_summarization_tool.transcription_service import TranscriptionService
 
 # Set API key for tests
-os.environ['DEEPGRAM_API_KEY'] = 'd36a45d3c8b0eb25dd95985f452e737df70485c3'
+os.environ['DEEPGRAM_API_KEY'] = 'YOUR_DEEPGRAM_API_KEY_HERE'
 
 def test_initialization():
     """Test TranscriptionService initialization"""

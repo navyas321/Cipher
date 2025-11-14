@@ -1,0 +1,269 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Bedrock Agents Infrastructure for Video Processing'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: VideoProcessing
+    Description: Name of the project for tagging resources
+  
+  FoundationModel:
+    Type: String
+    Default: anthropic.claude-3-5-sonnet-20240620-v1:0
+    Description: Bedrock foundation model ID for agents
+
+Resources:
+  # IAM Role for Orchestrator Agent
+  OrchestratorAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: BedrockOrchestratorAgentRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: OrchestratorAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${FoundationModel}'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeAgent
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*'
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:video-processing-*'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: AgentType
+          Value: Orchestrator
+
+  # IAM Role for Role Determination Agent
+  RoleDeterminationAgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: BedrockRoleDeterminationAgentRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/*'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: RoleDeterminationAgentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${FoundationModel}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: AgentType
+          Value: RoleDetermination
+
+  # Role Determination Agent
+  RoleDeterminationAgent:
+    Type: AWS::Bedrock::Agent
+    Properties:
+      AgentName: RoleDeterminationAgent
+      AgentResourceRoleArn: !GetAtt RoleDeterminationAgentRole.Arn
+      FoundationModel: !Ref FoundationModel
+      Instruction: |
+        You are a role determination agent specialized in analyzing user prompts to identify the target role perspective for video summaries.
+
+        Your task:
+        1. Analyze the user's prompt carefully
+        2. Identify the specific role or perspective they want the summary tailored for
+        3. Extract relevant context about what aspects are important for that role
+        4. Return your analysis in JSON format
+
+        Output format (JSON):
+        {
+            "role": "identified role name (e.g., manager, engineer, executive, student)",
+            "context": "relevant context about what this role cares about",
+            "confidence": 0.95,
+            "fallback": false
+        }
+
+        If you cannot determine a specific role:
+        - Set "fallback" to true
+        - Use "general" as the role
+        - Set confidence to 0.0
+
+        Examples:
+        - "Summarize this for a project manager" → role: "project manager"
+        - "What would an engineer find important?" → role: "engineer"
+        - "Give me the key points for executives" → role: "executive"
+        - "Summarize this video" → role: "general", fallback: true
+      Description: Analyzes user prompts to extract role information for tailored video summaries
+      IdleSessionTTLInSeconds: 600
+      Tags:
+        Project: !Ref ProjectName
+        AgentType: RoleDetermination
+
+  # Orchestrator Agent
+  OrchestratorAgent:
+    Type: AWS::Bedrock::Agent
+    DependsOn: RoleDeterminationAgent
+    Properties:
+      AgentName: VideoProcessingOrchestrator
+      AgentResourceRoleArn: !GetAtt OrchestratorAgentRole.Arn
+      FoundationModel: !Ref FoundationModel
+      Instruction: |
+        You are an orchestrator agent that processes video files to generate role-specific summaries.
+
+        Your workflow:
+        1. First, invoke the Role Determination Agent to analyze the user's prompt and extract the target role perspective
+        2. Retrieve the video file from S3 using the retrieve_video_from_s3 action
+        3. Transcribe the video using the transcribe_video action
+        4. Generate a role-specific summary based on the transcription and identified role
+
+        When generating summaries:
+        - Tailor the content to the identified role's perspective and interests
+        - Focus on information most relevant to that role's responsibilities
+        - Use clear, professional language appropriate for the role
+        - Provide actionable insights when applicable
+
+        Handle errors gracefully and provide clear feedback if any step fails.
+      Description: Orchestrates video processing workflow including role determination, transcription, and summary generation
+      IdleSessionTTLInSeconds: 600
+      Tags:
+        Project: !Ref ProjectName
+        AgentType: Orchestrator
+
+  # Test Alias for Role Determination Agent
+  RoleDeterminationAgentTestAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt RoleDeterminationAgent.AgentId
+      AgentAliasName: test
+      Description: Test alias for Role Determination Agent
+      Tags:
+        Project: !Ref ProjectName
+        Environment: test
+
+  # Production Alias for Role Determination Agent
+  RoleDeterminationAgentProdAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt RoleDeterminationAgent.AgentId
+      AgentAliasName: production
+      Description: Production alias for Role Determination Agent
+      Tags:
+        Project: !Ref ProjectName
+        Environment: production
+
+  # Test Alias for Orchestrator Agent
+  OrchestratorAgentTestAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt OrchestratorAgent.AgentId
+      AgentAliasName: test
+      Description: Test alias for Orchestrator Agent
+      Tags:
+        Project: !Ref ProjectName
+        Environment: test
+
+  # Production Alias for Orchestrator Agent
+  OrchestratorAgentProdAlias:
+    Type: AWS::Bedrock::AgentAlias
+    Properties:
+      AgentId: !GetAtt OrchestratorAgent.AgentId
+      AgentAliasName: production
+      Description: Production alias for Orchestrator Agent
+      Tags:
+        Project: !Ref ProjectName
+        Environment: production
+
+Outputs:
+  OrchestratorAgentId:
+    Description: ID of the Orchestrator Agent
+    Value: !GetAtt OrchestratorAgent.AgentId
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestratorAgentId'
+
+  OrchestratorAgentArn:
+    Description: ARN of the Orchestrator Agent
+    Value: !GetAtt OrchestratorAgent.AgentArn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestratorAgentArn'
+
+  OrchestratorTestAliasId:
+    Description: Test Alias ID for Orchestrator Agent
+    Value: !GetAtt OrchestratorAgentTestAlias.AgentAliasId
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestratorTestAliasId'
+
+  OrchestratorProdAliasId:
+    Description: Production Alias ID for Orchestrator Agent
+    Value: !GetAtt OrchestratorAgentProdAlias.AgentAliasId
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestratorProdAliasId'
+
+  RoleDeterminationAgentId:
+    Description: ID of the Role Determination Agent
+    Value: !GetAtt RoleDeterminationAgent.AgentId
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleDeterminationAgentId'
+
+  RoleDeterminationAgentArn:
+    Description: ARN of the Role Determination Agent
+    Value: !GetAtt RoleDeterminationAgent.AgentArn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleDeterminationAgentArn'
+
+  RoleDeterminationTestAliasId:
+    Description: Test Alias ID for Role Determination Agent
+    Value: !GetAtt RoleDeterminationAgentTestAlias.AgentAliasId
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleDeterminationTestAliasId'
+
+  RoleDeterminationProdAliasId:
+    Description: Production Alias ID for Role Determination Agent
+    Value: !GetAtt RoleDeterminationAgentProdAlias.AgentAliasId
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleDeterminationProdAliasId'
+
+  OrchestratorRoleArn:
+    Description: ARN of the Orchestrator Agent IAM Role
+    Value: !GetAtt OrchestratorAgentRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestratorRoleArn'
+
+  RoleDeterminationRoleArn:
+    Description: ARN of the Role Determination Agent IAM Role
+    Value: !GetAtt RoleDeterminationAgentRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleDeterminationRoleArn'

@@ -1,0 +1,188 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Video Processing Action Group API",
+    "version": "1.0.0",
+    "description": "API for video processing actions including S3 retrieval, transcription, and role determination"
+  },
+  "paths": {
+    "/retrieve_video_from_s3": {
+      "post": {
+        "summary": "Retrieve video file from S3 bucket",
+        "description": "Retrieves a video file from the specified S3 bucket and object key",
+        "operationId": "retrieveVideoFromS3",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bucket_name": {
+                    "type": "string",
+                    "description": "Name of the S3 bucket containing the video"
+                  },
+                  "video_key": {
+                    "type": "string",
+                    "description": "S3 object key (path) to the video file"
+                  }
+                },
+                "required": ["bucket_name", "video_key"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Video retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "video_size_bytes": {
+                      "type": "integer"
+                    },
+                    "bucket_name": {
+                      "type": "string"
+                    },
+                    "video_key": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcribe_video": {
+      "post": {
+        "summary": "Transcribe video using Deepgram",
+        "description": "Extracts audio from video and transcribes it using Deepgram API with word-level timestamps",
+        "operationId": "transcribeVideo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bucket_name": {
+                    "type": "string",
+                    "description": "Name of the S3 bucket containing the video"
+                  },
+                  "video_key": {
+                    "type": "string",
+                    "description": "S3 object key (path) to the video file"
+                  }
+                },
+                "required": ["bucket_name", "video_key"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Video transcribed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "transcript": {
+                      "type": "string",
+                      "description": "Full text transcript of the video"
+                    },
+                    "word_count": {
+                      "type": "integer"
+                    },
+                    "duration": {
+                      "type": "number"
+                    },
+                    "language": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoke_role_agent": {
+      "post": {
+        "summary": "Invoke Role Determination Agent",
+        "description": "Analyzes user prompt to extract role information for tailored summaries",
+        "operationId": "invokeRoleAgent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_prompt": {
+                    "type": "string",
+                    "description": "User's prompt containing role information"
+                  }
+                },
+                "required": ["user_prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role determined successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "role": {
+                      "type": "string",
+                      "description": "Identified role (e.g., manager, engineer, executive)"
+                    },
+                    "context": {
+                      "type": "string",
+                      "description": "Additional context about the role"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "description": "Confidence score (0.0-1.0)"
+                    },
+                    "fallback": {
+                      "type": "boolean",
+                      "description": "Whether default role was used"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,14 @@
+# Environment variables
+.env
+*.env
+
+# API Keys and secrets
+*api_key*
+*secret*
+
+# AWS credentials
+bedrock_agent_config.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -7,21 +18,19 @@ __pycache__/
 env/
 venv/
 ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+
+# Lambda deployment packages
+*.zip
+lambda_package/
+lambda_deployment.zip
+lambda_simple.zip
+
+# Transcripts and outputs
+transcript.txt
+*.mp4
+*.avi
+*.mov
+*.mkv
 
 # IDE
 .vscode/
@@ -34,7 +43,5 @@ wheels/
 .DS_Store
 Thumbs.db
 
-# Project specific
-videoplayback.mp4
-deepgram-python-sdk/
+# Logs
 *.log

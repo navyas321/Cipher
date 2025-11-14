@@ -16,6 +16,7 @@ A Python module that provides video-to-text transcription capabilities using Dee
 - [Installation](#installation)
 - [Prerequisites](#prerequisites)
 - [Configuration](#configuration)
+- [Bedrock Agent Setup](#bedrock-agent-setup)
 - [Usage](#usage)
 - [Output Structure](#output-structure)
 - [API Reference](#api-reference)
@@ -111,6 +112,28 @@ os.environ['DEEPGRAM_API_KEY'] = 'your_api_key_here'
 ```
 
 ⚠️ **Security Note**: Never commit API keys to version control. Use `.env` files and add them to `.gitignore`.
+
+## Bedrock Agent Setup
+
+This project includes infrastructure setup for AWS Bedrock Agents that orchestrate the video processing workflow. The setup creates two specialized agents:
+
+- **Orchestrator Agent**: Manages the complete workflow from video retrieval to summary generation
+- **Role Determination Agent**: Analyzes user prompts to extract role-specific context
+
+### Quick Setup
+
+```bash
+# Install setup dependencies
+pip install -r setup_requirements.txt
+
+# Run the setup script
+python bedrock_agent_setup.py
+
+# Verify the setup
+python verify_bedrock_setup.py
+```
+
+For detailed instructions, see [BEDROCK_SETUP_README.md](BEDROCK_SETUP_README.md).
 
 ### Getting a Deepgram API Key
 
